@@ -11,9 +11,8 @@ By the end of this module, students should be able to:
    server executes the tool → result goes back to the LLM → LLM writes the final answer.
 3. Explain why the tool execution must happen on the **server**, never the browser
    (API keys, trust boundary — ties back to earlier lessons on client/server separation).
-4. Describe what a service like **Composio** is for: a catalog of pre-built tool
-   integrations (GitHub, weather, search, etc.) so developers don't hand-roll every
-   third-party API call themselves.
+4. Describe why real-world "tools" for an LLM are usually just existing APIs
+   (here: a weather API) wrapped in a name/description/schema the LLM can read.
 
 ## Architecture (what to draw on the board)
 ```
@@ -24,13 +23,10 @@ Express server (server.js)
    |  anthropic.messages.create({ tools, messages })
    v
 Anthropic API (the LLM)
-   |  "I need WEATHERMAP_WEATHER for city=Baguio"  <-- tool_use block
+   |  "I need get_weather for city=Baguio"  <-- tool_use block
    v
 Express server
-   |  composioToolset.executeAction(...)
-   v
-Composio  -->  actual Weather API
-   |  result
+   |  fetch(...) to Open-Meteo (geocoding + forecast, no API key needed)
    v
 Express server sends the tool result back to the LLM, LLM writes final answer
    |
@@ -40,8 +36,8 @@ Browser displays reply + a full trace of every step
 
 ## Setup (5–10 min in class)
 1. `npm install`
-2. Copy `.env.example` to `.env`, add an Anthropic key and a Composio key
-   (both have free tiers — get students to sign up ahead of time).
+2. Copy `.env.example` to `.env`, add an Anthropic key
+   (has a free tier — get students to sign up ahead of time).
 3. `npm start`, open `http://localhost:3000`.
 4. Ask: "What's the weather in Baguio?" and read the trace panel together.
 
@@ -53,16 +49,18 @@ Browser displays reply + a full trace of every step
 3. **Code walkthrough (15 min):** Read `server.js` together — especially the
    `for` loop, which is the part students usually find non-obvious the first
    time (why isn't one API call enough?).
-4. **Lab exercise (remaining time):** Have students add a **second** Composio
-   action (pick anything that doesn't need OAuth login, e.g. a public search
-   or Hacker News action) and extend `ENABLED_ACTIONS`, then test that the
+4. **Lab exercise (remaining time):** Have students add a **second** tool
+   (pick any free, no-signup-required public API, e.g. a joke or trivia API)
+   to the `tools` array and its own handler function, then test that the
    LLM correctly chooses between the two tools based on the question asked.
 
 ## Notes for you as instructor
-- Composio's JS SDK and available action names change over time — verify
-  `ENABLED_ACTIONS` and the import (`composio-core`) against
-  [Composio's current docs](https://docs.composio.dev) before class, since
-  package APIs move faster than this guide can be updated.
+- This uses [Open-Meteo](https://open-meteo.com) for weather because it
+  needs no API key or signup — one less account for students to juggle
+  mid-class. If you swap in a different tool provider, double check its
+  current API/SDK docs first, since third-party APIs change over time (an
+  earlier version of this demo used Composio, whose JS SDK was deprecated
+  and had its backend API removed out from under it).
 - This deliberately avoids OAuth-gated tools (Gmail, GitHub write actions,
   etc.) so no student gets blocked mid-class waiting on a login flow. Once
   they're comfortable with the loop, that's a natural "stretch goal."
