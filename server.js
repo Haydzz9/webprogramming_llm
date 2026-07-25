@@ -4,50 +4,58 @@
 // This is a MINIMAL, HEAVILY COMMENTED full-stack demo. It is meant to be
 // read top to bottom in class, not just run. The goal is to make the LLM
 // "black box" concrete by showing every HTTP request/response that happens
-// between: Browser <-> our Express server <-> Anthropic (the LLM) <-> Composio
-// (real-world tool execution).
-//
-// CONCEPTS THIS DEMO TEACHES
-//   1. An LLM is just an API you POST text to and get text back.
-//   2. "Tool calling" (a.k.a. function calling): the LLM can ask YOUR server
-//      to run a function, then it reads the function's result and continues
-//      its answer. The LLM never runs code itself — your server does.
-//   3. Composio is a library of ready-made "tools" (GitHub, weather, search,
-//      etc.) so you don't have to hand-write every API integration yourself.
-//   4. A request/response cycle can loop more than once: user message ->
-//      LLM asks for a tool -> server runs tool -> server sends result back
-//      to LLM -> LLM writes the final answer.
+// between: Browser <-> our Express server <-> Anthropic (the LLM) <-> a
+// real-world tool (a weather API).
 
 import 'dotenv/config';
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { OpenAIToolSet } from 'composio-core'; // composio-core also ships a
-// framework-agnostic ToolSet; OpenAIToolSet's tool-schema format happens to
-// match what most LLM providers (including Claude) expect, so we reuse it
-// here instead of hand-writing JSON schemas for every tool.
 
 const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const composioToolset = new OpenAIToolSet({ apiKey: process.env.COMPOSIO_API_KEY });
 
-// STEP 1: Ask Composio for the tool schemas we want to expose to the LLM.
-// We keep the demo to ONE safe, no-login-required action so students can run
-// it without setting up OAuth for GitHub/Gmail/etc. in the middle of class.
-// Composio's action catalog: https://app.composio.dev/apps
-const ENABLED_ACTIONS = ['WEATHERMAP_WEATHER']; // current weather by city name
+// STEP 1: Describe the tool(s) we expose to the LLM. Claude decides WHEN to
+// call this based on the name/description below; our server is what
+// actually runs it. We use Open-Meteo here because it needs no API key or
+// signup, so the demo stays copy-paste-runnable in class.
+const tools = [
+  {
+    name: 'get_weather',
+    description: 'Get the current weather for a city by name.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        city: { type: 'string', description: 'City name, e.g. "Baguio"' },
+      },
+      required: ['city'],
+    },
+  },
+];
 
-async function getToolsForLLM() {
-  const composioTools = await composioToolset.getTools({ actions: ENABLED_ACTIONS });
-  // Composio returns tools already shaped for OpenAI-style function calling.
-  // Claude's tool format is slightly different, so we translate field names.
-  return composioTools.map((t) => ({
-    name: t.function.name,
-    description: t.function.description,
-    input_schema: t.function.parameters,
-  }));
+async function getWeather(city) {
+  // Open-Meteo's forecast endpoint needs lat/lon, so we geocode the city
+  // name first (also free, no key required).
+  const geoRes = await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`
+  );
+  const geo = await geoRes.json();
+  const place = geo.results?.[0];
+  if (!place) return { error: `Could not find a location named "${city}"` };
+
+  const weatherRes = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,wind_speed_10m,weather_code`
+  );
+  const weather = await weatherRes.json();
+
+  return {
+    city: place.name,
+    country: place.country,
+    temperature_c: weather.current.temperature_2m,
+    wind_speed_kmh: weather.current.wind_speed_10m,
+  };
 }
 
 // STEP 2: The main chat endpoint the frontend calls.
@@ -56,7 +64,6 @@ app.post('/api/chat', async (req, res) => {
     const userMessage = req.body.message;
     if (!userMessage) return res.status(400).json({ error: 'message is required' });
 
-    const tools = await getToolsForLLM();
     const trace = []; // we send this back to the browser so students can SEE
     // every step of the loop, not just the final answer.
 
@@ -88,23 +95,19 @@ app.post('/api/chat', async (req, res) => {
       // The LLM DID ask for a tool. Add its request to the conversation...
       messages.push({ role: 'assistant', content: response.content });
 
-      // ...then actually run each requested tool via Composio and record
-      // what we send back.
+      // ...then actually run each requested tool and record what we send back.
       const toolResults = [];
       for (const block of toolUseBlocks) {
         trace.push({ step: 'Tool call requested', tool: block.name, input: block.input });
 
-        const executionResult = await composioToolset.executeAction({
-          action: block.name,
-          params: block.input,
-        });
+        const result = await getWeather(block.input.city);
 
-        trace.push({ step: 'Tool result received', tool: block.name, result: executionResult.data });
+        trace.push({ step: 'Tool result received', tool: block.name, result });
 
         toolResults.push({
           type: 'tool_result',
           tool_use_id: block.id,
-          content: JSON.stringify(executionResult.data),
+          content: JSON.stringify(result),
         });
       }
 
