@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CSAE 104 — How LLMs Work</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; background:#0f172a; color:#e2e8f0; }
+  h1 { font-size: 1.3rem; }
+  #chat { border: 1px solid #334155; border-radius: 8px; padding: 16px; min-height: 200px; margin-bottom: 12px; }
+  .msg { margin-bottom: 10px; }
+  .user { color:#7dd3fc; }
+  .bot { color:#86efac; }
+  #trace { font-family: monospace; font-size: 0.8rem; background:#111827; border:1px solid #334155; border-radius:8px; padding:12px; white-space: pre-wrap; }
+  form { display:flex; gap:8px; }
+  input { flex:1; padding:8px; border-radius:6px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; }
+  button { padding:8px 16px; border-radius:6px; border:none; background:#38bdf8; cursor:pointer; font-weight:600; }
+</style>
+</head>
+<body>
+  <h1>How LLMs Work — a live look under the hood</h1>
+  <p>Ask something about the weather in a city. Watch the "What actually happened" panel below to see every request between your browser, the LLM, and the tool it calls.</p>
+
+  <div id="chat"></div>
+  <form id="chatForm">
+    <input id="userInput" placeholder="e.g. What's the weather in Baguio?" autocomplete="off" />
+    <button type="submit">Send</button>
+  </form>
+
+  <h2>What actually happened</h2>
+  <div id="trace">(nothing sent yet)</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "csae104-llm-tool-demo",
+  "version": "1.0.0",
+  "description": "CSAE 104 learning module: how LLMs work, built with Node/Express + Anthropic + Composio tool-calling",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "composio-core": "^0.5.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
